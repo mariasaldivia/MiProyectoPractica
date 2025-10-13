@@ -21,6 +21,7 @@ const USERS_DB = [
     { rut: "16893853-5", clave: "1689", name: "Hermi Vargas Garriel", cargo: "Auxiliar de reparto" },
 ];
 
+//- prueba 
 
 // --- PALETA DE COLORES ---
 const COLORS = {
