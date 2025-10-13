@@ -7,7 +7,7 @@ import { useAuth } from "../app/utils/AuthContext";
 
 
 // --- BASE DE DATOS DE SIMULACIÓN ---
-// S
+// S#dnad
 const USERS_DB = [
     { rut: "10628303-6", clave: "1062", name: "Alex Salgado Aguilar", cargo: "Coordinador de flota" },
     { rut: "11129781-9", clave: "1112", name: "Luis Cardenas Bahamonde", cargo: "Conductor"},
