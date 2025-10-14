@@ -2,8 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Stack } from 'expo-router';
+import { useRouter, useSegments  } from 'expo-router';
 
+// Definición del tipo de contexto
 interface AuthContextType {
   userRut: string | null;
   userName: string | null; // 🚨 Nuevo campo para el nombre

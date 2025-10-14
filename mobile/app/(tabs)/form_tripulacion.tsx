@@ -1,26 +1,48 @@
 // app/(tabs)/formulario.tsx
 import React, { useEffect, useState } from "react";
-import { View, Text, TextInput, Button, TouchableOpacity, StyleSheet, Alert, ScrollView} from "react-native";
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  StyleSheet, 
+  ScrollView,
+  Modal, // 🚨 Importamos Modal para la ventana emergente
+  Animated, // 🚨 Importamos Animated para transiciones suaves
+} from "react-native";
 import dayjs from "dayjs"; // npm install dayjs
 import AsyncStorage from "@react-native-async-storage/async-storage"; // npm install @react-native-async-storage/async-storage
 import { useRouter } from "expo-router";
-// Importar useAuth para una limpieza correcta del estado
 import { useAuth } from "../utils/AuthContext"; 
-import { MaterialCommunityIcons } from '@expo/vector-icons'; // Usaremos esto para el checkbox
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-
-// Paleta de Colores (Ajustada para usar en este formulario)
+// --- PALETA DE COLORES OPTIMIZADA (COHERENTE CON LOGO ROJO/NARANJA) ---
 const COLORS = {
-  black: '#000000', // Fondo principal
-  darkestGray: '#1A1A1A', // Contenedor del formulario (Card)
-  darkGray: '#333333', // Fondo de los Inputs
-  inputBorder: '#333333', // Borde de inputs (mismo que fondo para efecto limpio)
-  orange: '#FF6600', // Marca
-  red: '#CC0000', // Alerta
-  white: '#FFFFFF', // Texto
-  lightGray: '#AAAAAA', // Placeholder/Texto secundario
+  mainBackground: '#101014', 
+  // Fondo principal del formulario/tarjetas
+  cardBackground: '#1A1A22',  
+  inputBackground: '#121218', 
+  inputBorder: '#3A4048', 
+  orange: '#FF6600', 
+  red: '#DA291C', 
+  white: '#FFFFFF', 
+  lightGray: '#AAAAAA', 
+  // Colores para estados de alerta
+  success: '#3CB371', // Verde suave para éxito
+  error: '#DA291C', // Rojo para error
+  modalBackground: 'rgba(0, 0, 0, 0.7)', // Fondo semi-transparente del modal
+  softGreen: '#3CB371',
 };
-
+// --- FUNCIÓN DE ESTILO DE FOCUS ---
+const getFocusStyle = (isFocused: boolean) => ({
+    borderColor: isFocused ? COLORS.orange : COLORS.inputBorder,
+    // Sombra sutil para el efecto de focus
+    shadowColor: isFocused ? COLORS.orange : 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: isFocused ? 0.5 : 0,
+    shadowRadius: isFocused ? 5 : 0,
+    elevation: isFocused ? 2 : 0,
+});
 // Datos de tripulación 
 const OPS_TRIPULACION = [
     { id: 1, name: "Daniel Alvaro Delgado" },
@@ -31,34 +53,96 @@ const OPS_TRIPULACION = [
     { id: 6, name: "Hermi Vargas Garriel" },
 ];
 
+// --- COMPONENTE DE ALERTA PERSONALIZADA ---
+interface AlertProps {
+  isVisible: boolean;
+  onClose: () => void;
+  title: string;
+  message: string;
+  type: 'success' | 'error';
+}
+
+const CustomAlert: React.FC<AlertProps> = ({ isVisible, onClose, title, message, type }) => {
+  const color = type === 'success' ? COLORS.success : COLORS.error;
+  const iconName = type === 'success' ? 'check-circle' : 'alert-circle';
+
+  return (
+    <Modal
+      animationType="fade"
+      transparent={true}
+      visible={isVisible}
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.alertBoxCustom}>
+          <MaterialCommunityIcons name={iconName} size={36} color={color} style={{ marginBottom: 10 }} />
+          
+          <Text style={[styles.alertTitle, { color: color }]}>
+            {title}
+          </Text>
+          <Text style={styles.alertMessage}>
+            {message}
+          </Text>
+          
+          <TouchableOpacity style={[styles.alertButton, { backgroundColor: color }]} onPress={onClose}>
+            <Text style={styles.alertButtonText}>Aceptar</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+// --- FIN COMPONENTE DE ALERTA PERSONALIZADA ---
+
 
 export default function Formulario() {
   const [fecha, setFecha] = useState("");
-  const [rutConductor, setRutConductor] = useState(""); // Se asocia al login
+  const [rutConductor, setRutConductor] = useState(""); 
   const [nombreConductor, setNameUser] = useState("");
   const [cargo, setCargoUser] = useState("");
-  const [selectedCrew, setSelectedCrew] = useState<string[]>([]); //Espera un array
-  //Crew = tripulación
+  const [selectedCrew, setSelectedCrew] = useState<string[]>([]); 
   const [ausente, setAusente] = useState("");
+  // Controla si se espera el ingreso de nombres ausentes (True = SÍ hay ausentes)
+  const [hayAusentes, setHayAusentes] = React.useState(true); 
   const [patente, setPatente] = useState("");
 
+  // --- ESTADOS DE FOCUS ---
+  const [isPatenteFocused, setIsPatenteFocused] = useState(false);
+  const [isAusenteFocused, setIsAusenteFocused] = useState(false);
+
+  // --- ESTADOS DEL MODAL DE ALERTA ---
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertContent, setAlertContent] = useState({ title: '', message: '', type: 'success' as 'success' | 'error' });
+
   const router = useRouter();
-  // 🚨 Usar useAuth para cerrar sesión
   const { signOut } = useAuth(); 
 
-  const logout = async () => {
-    // 🚨 Usar la función signOut del contexto: elimina AsyncStorage y actualiza el estado
-    await signOut(); 
-    router.replace("/login");
+  // Lógica para alternar el control de ausentes
+  const handleNoAusentesToggle = () => {
+    const newState = !hayAusentes;
+    setHayAusentes(newState);
+
+    // Si se marca "No hay Ausentes" (newState = false), limpiamos el campo de texto
+    if (!newState) {
+      setAusente('');
+      setIsAusenteFocused(false); 
+    }
   };
 
-  // Cargar fecha actual y rut guardado del login
+  // Estilos dinámicos para el campo de texto de Ausente
+  const ausenteInputStyle = [
+    styles.input, 
+    getFocusStyle(isAusenteFocused),
+    // Estilo para deshabilitar visualmente el input
+    !hayAusentes && styles.inputDisabled 
+  ];
+
+  // Cargar datos del login
   useEffect(() => {
     const cargarDatos = async () => {
-      const hoy = dayjs().format("YYYY-MM-DD HH:mm");
+      const hoy = dayjs().format("YYYY-MM-DD HH:mm:ss"); 
       setFecha(hoy);
 
-      // Recuperar RUT guardado del login
       const rutGuardado = await AsyncStorage.getItem("rutUsuario");
       if (rutGuardado) setRutConductor(rutGuardado);
       const nameGuardado = await AsyncStorage.getItem("userName");
@@ -70,81 +154,120 @@ export default function Formulario() {
     cargarDatos();
   }, []);
 
-  // Función para manejar la selección/deselección del tripulante
-    const toggleCrewMember = (name: string) => {
-        setSelectedCrew(prev => {
-            if (prev.includes(name)) {
-                // Si ya está, lo quitamos
-                return prev.filter(n => n !== name);
-            } else {
-                // Si no está, lo añadimos
-                return [...prev, name];
-            }
-        });
-    };
-
+  // Manejador de selección de tripulante
+  const toggleCrewMember = (name: string) => {
+    setSelectedCrew(prev => {
+        if (prev.includes(name)) {
+            return prev.filter(n => n !== name);
+        } else {
+            return [...prev, name];
+        }
+    });
+  };
+  // --- LÓGICA DE ENVÍO Y VALIDACIÓN CORREGIDA ---
   const handleSubmit = () => {
-    if (selectedCrew.length === 0 || !ausente || !patente) {
-      Alert.alert("Campos requeridos", "Completa todos los campos antes de enviar.");
+    // 1. Validación de Patente (siempre requerida)
+    const isPatenteInvalid = patente.trim().length === 0;
+
+    // 2. Validación de Ausente (solo requerida si 'hayAusentes' está marcado)
+    const isAusenteInvalid = hayAusentes && ausente.trim().length === 0;
+
+    // 3. Validación de Tripulación (siempre requerida)
+    const isCrewInvalid = selectedCrew.length === 0;
+
+    if (isCrewInvalid || isAusenteInvalid || isPatenteInvalid) {
+ 
+      let errorMessage = "Completa los siguientes campos obligatorios:\n\n";
+
+      if (isCrewInvalid) errorMessage += "• Selección de Tripulación Presente\n";
+      if (isPatenteInvalid) errorMessage += "• Patente de la Unidad de Transporte\n";
+      if (isAusenteInvalid) errorMessage += "• Nombre(s) del Tripulante Ausente\n";
+
+      // Mostrar Alerta de ERROR usando el modal
+      setAlertContent({
+        title: "🚨 Campos Requeridos",
+        message: errorMessage.trim(),
+        type: 'error',
+      });
+      setShowAlert(true);
       return;
     }
 
+    //Si la pasa la validación de forma adecuada
     const datos = {
       fecha,
       rutConductor,
       nombreConductor,
-      // Guardamos la tripulación como una cadena separada por comas
-      tripulacion: selectedCrew.join(', '),
-      ausente,
-      patente,
+      tripulacionPresente: selectedCrew.join(', '),
+      ausenteReportado: ausente || "Ninguno", // Asignar "Ninguno" si el campo quedó vacío por el checkbox
+      patente: patente.toUpperCase(),
     };
 
     console.log("Formulario enviado:", datos);
-    Alert.alert("Registro guardado", "Los datos se han enviado correctamente.");
     
+    // 🚨 Mostrar Alerta de ÉXITO usando el modal
+    setAlertContent({
+      title: "✅ Registro Guardado",
+      message: "Los datos se han enviado y guardado correctamente.",
+      type: 'success',
+    });
+    setShowAlert(true);
+    
+    // Aquí podrías agregar la lógica para enviar a una API o base de datos.
+    // Aquí debe ir la lógica para LIMPIAR el formulario después del envío exitoso
+    // setPatente(''); 
+    // setAusente(''); 
+    // setSelectedCrew([]); 
+    // setHayAusentes(true); // Opcional: reiniciar estado de ausentes
+  };
+  
+  const logout = async () => {
+    await signOut(); 
+    router.replace("/login");
   };
 
   return (
-    // 🚨 Usar ScrollView para permitir el desplazamiento
     <ScrollView 
-          style={styles.scrollView} 
-          contentContainerStyle={styles.containerContent}
-          // Agrega un relleno extra para el área de las pestañas
-          // La altura de las tabs es ~50, así que usamos un padding seguro de 80
-          automaticallyAdjustContentInsets={false} // Para iOS
-          contentInset={{ bottom: 80 }} // Para iOS
+        style={styles.scrollView} 
+        contentContainerStyle={styles.containerContent}
+        automaticallyAdjustContentInsets={false} 
+        contentInset={{ bottom: 80 }} 
       > 
       <View style={styles.container}>
-        <Text style={styles.title}>Registro de los acompañantes</Text>
+        <Text style={styles.title}>Registro de Tripulación</Text>
+        <Text style={styles.subtitle}>Información diaria de los acompañantes y la unidad de transporte.</Text>
+        
         <View style = {styles.formCard}>
-          {/* ... Campos de solo lectura (Fecha, Rut, Nombre) ... */}
+          
+          {/* CAMPOS DE SÓLO LECTURA */}
           <View style={styles.field}>
-            <Text style={styles.label}>📅 Fecha</Text>
+            <Text style={styles.label}>Fecha y Hora</Text>
             <Text style={styles.value}>{fecha}</Text>
+          </View>          
+          <View style={styles.field}>
+            <Text style={styles.label}>Usuario</Text>
+            <Text style={styles.value}>
+              {nombreConductor
+                ? `${nombreConductor}   (${cargo || "Sin cargo"})`
+                : "No disponible"}
+            </Text>
           </View>
           <View style={styles.field}>
-            <Text style={styles.label}>RUR del Usuario</Text>
+            <Text style={styles.label}>RUT</Text>
             <Text style={styles.value}>{rutConductor || "No disponible"}</Text>
           </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Nombre y rol del Usuario</Text>
-            <Text style={styles.value}>
-            {nombreConductor
-              ? `${nombreConductor} (${cargo || "Sin cargo"})`
-              : "No disponible"}
-          </Text>
-          </View>
+          {/* Separador de los campos SÓLO LECTURA con los demás*/}
+          <View style={styles.separator} /> 
           
-          {/* ... Campos de entrada ... */}
-          <Text style={styles.label}>Tripulación</Text>
+          {/* SELECCIÓN DE TRIPULACIÓN */}
+          <Text style={styles.label}>Tripulación (Selecciona los presentes)</Text>
           <View style={styles.crewListContainer}>
             {OPS_TRIPULACION.map((crew) => {
               const isSelected = selectedCrew.includes(crew.name);
               return (
                   <TouchableOpacity
                       key={crew.id}
-                      style={styles.crewItem}
+                      style={[styles.crewItem, isSelected && styles.crewItemSelected]}
                       onPress={() => toggleCrewMember(crew.name)}
                   >
                       {/* Checkbox Simulado con Iconos */}
@@ -161,38 +284,87 @@ export default function Formulario() {
             })}
           </View>
 
-          <Text style={styles.label}>Ausente</Text>
+          {/* CAMPO AUSENTE Y SU CONTROL (Limpio y sin duplicados) */}
+          <Text style={styles.label}>Ausente (Nombres)</Text>
+            {/* Checkbox Estético */}
+            <TouchableOpacity 
+              style={styles.checkboxContainer}
+              onPress={handleNoAusentesToggle}
+              activeOpacity={0.8}
+              >
+              <MaterialCommunityIcons 
+                // Icono de círculo relleno para marcado, círculo vacío para desmarcado
+                name={!hayAusentes ? 'radiobox-marked' : 'radiobox-blank'} 
+                size={24} 
+                color={!hayAusentes ? COLORS.softGreen : COLORS.lightGray} 
+              />
+              <Text 
+                style={[
+                  styles.checkboxLabel, 
+                  // Color de texto verde si está marcado
+                  { color: !hayAusentes ? COLORS.softGreen : COLORS.white }
+                ]}
+              >   
+                No hay tripulación ausente.
+              </Text>
+            </TouchableOpacity>
+            
+            {/* Campo de Texto para Ausentes */}
+            <TextInput
+              style={[...ausenteInputStyle, styles.textArea]}
+              value={ausente}
+              onChangeText={setAusente}
+              onFocus={() => setIsAusenteFocused(true)}
+              onBlur={() => setIsAusenteFocused(false)}
+              placeholder="Ej: Juan Pérez, María Soto (separados por coma)"
+              placeholderTextColor={COLORS.lightGray}
+              editable={hayAusentes} // Deshabilita la edición si 'No hay ausentes' está marcado
+              multiline
+              // Estilo para hacer el input más alto
+              numberOfLines={4} 
+             
+            />
+          {/*  
+          
+          {/* CAMPO PATENTE */}
+          <Text style={styles.label}>Patente (Unidad de transporte)</Text>
           <TextInput
-            style={styles.input}
-            value={ausente}
-            onChangeText={setAusente}
-            placeholder="--"
-          />
-
-          <Text style={styles.label}>Patente</Text>
-          <TextInput
-            style={styles.input}
+            style={[styles.input, getFocusStyle(isPatenteFocused)]}
             value={patente}
             onChangeText={setPatente}
-            placeholder="--"
+            onFocus={() => setIsPatenteFocused(true)}
+            onBlur={() => setIsPatenteFocused(false)}
+            placeholder="Ej: GHJK12"
+            placeholderTextColor={COLORS.lightGray}
+            autoCapitalize="characters"
+            maxLength={6}
           />
 
-          {/* 🚨 BOTONES PERSONALIZADOS 🚨 */}
+          {/* GRUPO DE BOTONES */}
           <View style={styles.buttonGroup}>
             
-            {/* BOTÓN 1: GUARDAR (Naranja, color primario de la marca) */}
-            <TouchableOpacity style={styles.primaryButton} onPress={handleSubmit}>
-              <Text style={styles.buttonText}>Guardar registro</Text>
+            {/* BOTÓN 1: GUARDAR (Naranja, color primario) */}
+            <TouchableOpacity style={styles.primaryButton} onPress={handleSubmit} activeOpacity={0.8}>
+              <Text style={styles.buttonText}>Guardar Registro</Text>
             </TouchableOpacity>
 
-            {/* BOTÓN 2: CERRAR SESIÓN (Rojo, color secundario) */}
-            <TouchableOpacity style={styles.secondaryButton} onPress={logout}>
-              <Text style={styles.buttonText}>Cerrar sesión</Text>
+            {/* BOTÓN 2: CERRAR SESIÓN (Rojo, color secundario/destructivo) */}
+            <TouchableOpacity style={styles.secondaryButton} onPress={logout} activeOpacity={0.8}>
+              <Text style={styles.buttonText}>Cerrar Sesión</Text>
             </TouchableOpacity>
           </View>
         </View>
         
       </View>
+      
+      {/* 🚨 INTEGRACIÓN DEL MODAL 🚨 */}
+      <CustomAlert
+        isVisible={showAlert}
+        onClose={() => setShowAlert(false)}
+        title={alertContent.title}
+        message={alertContent.message}
+        type={alertContent.type}
+      />
     </ScrollView>
   );
 }
@@ -200,108 +372,207 @@ export default function Formulario() {
 const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
-    backgroundColor: COLORS.black
+    backgroundColor: COLORS.mainBackground 
   },
-   containerContent: {
-    // Relleno seguro en la parte inferior para contenido scrolleable
-    paddingBottom: 20, 
+    containerContent: {
+    
   },
-  container: {  
-    padding: 20, 
-  },
-  // 2. CARD/CONTENEDOR DEL FORMULARIO (Donde aplicamos el estilo "flotante")
-  formCard: {
-    backgroundColor: COLORS.darkestGray, // Gris oscuro
-    padding: 25,
-    borderRadius: 10,
-    marginTop: 20,
-    marginBottom: 10,
-    // 🚨 EFECTO DE SOMBRA NARANJA (El "borde brillante")
-    shadowColor: COLORS.orange,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, // Opacidad baja para que sea sutil
-    shadowRadius: 8,
-    elevation: 8,
+  container: {
+    paddingTop: 25,
+    paddingLeft: 40, 
+    paddingRight: 40, 
+    
   },
   title: { 
     fontSize: 24, 
     fontWeight: "bold", 
-    marginBottom: 20, 
-    textAlign: "center",
+    marginTop: 10,
+    marginBottom: 5,
+    textAlign:'left',
     color: COLORS.white
   },
+  subtitle: {
+    fontSize: 18,
+    color: COLORS.lightGray,
+    marginBottom: 20,
+    textAlign:'left',
+    fontWeight: '500',
+  },
+  formCard: {
+    backgroundColor: COLORS.cardBackground, 
+    padding: 20,
+    borderRadius: 12, 
+    marginTop: 10,
+    marginBottom: 30,
+    shadowColor: COLORS.orange,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, 
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: COLORS.inputBorder, 
+  },
+  separator: {
+    height: 1,
+    backgroundColor: COLORS.inputBorder,
+    marginVertical: 15,
+  },
   field: { 
-    marginBottom: 10 
+    marginBottom: 5 
   },
   label: { 
-    fontSize: 14, 
+    fontSize: 18, 
     fontWeight: "600", 
-    marginTop: 10,
-    marginBottom: 10,
+    marginTop: 15,
+    marginBottom: 8,
     color: COLORS.white
   },
   value: {
-    fontSize: 16,
+    fontSize: 18,
     color: COLORS.lightGray,
-    paddingLeft: 5
+    
+    fontWeight: '500',
   },
   input: {
     height: 48,
-    backgroundColor: COLORS.darkGray,
+    backgroundColor: COLORS.inputBackground,
     borderRadius: 8,
     paddingHorizontal: 15,
-    color: COLORS.white, // Texto de entrada blanco
+    color: COLORS.white,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: COLORS.orange,
+    borderColor: COLORS.inputBorder, 
+  },
+  inputFocused: {
+    borderColor: COLORS.orange, 
+    shadowColor: COLORS.orange,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 5,
+    elevation: 8,
+  },
+  textArea: {
+    height: 100, // Altura fija para el multiline
+    textAlignVertical: 'top', // Para que el texto empiece arriba en Android
   },
 
-    crewListContainer: {
-      backgroundColor: COLORS.darkGray,
-      borderRadius: 8,
-      marginBottom: 15,
-      paddingVertical: 5,
-     
+  crewListContainer: {
+    backgroundColor: COLORS.inputBackground,
+    borderRadius: 8,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: COLORS.inputBorder,
   },
     crewItem: {
-        borderBottomColor: COLORS.darkestGray,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 15,
-        borderBottomWidth: 1,
-        
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: COLORS.inputBorder,
+    },
+    crewItemSelected: {
+      backgroundColor: 'rgba(255, 102, 0, 0.1)', 
     },
     crewText: {
-        marginLeft: 10,
-        fontSize: 16,
-        color: COLORS.white,
+      marginLeft: 15,
+      fontSize: 16,
+      color: COLORS.white,
+      flex: 1,
     },
     crewTextSelected: {
-        fontWeight: 'bold',
-        color: COLORS.orange,
+      fontWeight: 'bold',
+      color: COLORS.orange,
     },
   buttonGroup: {
-    marginTop: 30,
-    
+    marginTop: 40,
   },
   primaryButton: {
     backgroundColor: COLORS.orange, 
-    padding: 15, 
+    padding: 16, 
     borderRadius: 8, 
     alignItems: "center",
-    marginBottom: 10 // Margen inferior para separarlo del botón de cerrar sesión
+    marginBottom: 15,
+    shadowColor: COLORS.orange,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 10,
   },
   secondaryButton: {
-    backgroundColor: COLORS.red, // Rojo para la acción destructiva (cerrar sesión)
-    padding: 15, 
+    backgroundColor: COLORS.red, 
+    padding: 16, 
     borderRadius: 8, 
     alignItems: "center",
-    marginTop: 5
+    shadowColor: COLORS.red,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 10,
   },
   buttonText: { 
     color: COLORS.white, 
-    fontWeight: "bold",
-    fontSize: 16
+    fontWeight: "600", 
+    fontSize: 20,
   },
+  // --- ESTILOS DEL MODAL PERSONALIZADO ---
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.modalBackground, // Fondo semi-transparente
+  },
+  alertBoxCustom: {
+    width: '85%',
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 15,
+    padding: 30,
+    alignItems: 'center',
+    shadowColor: COLORS.white,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    elevation: 20,
+  },
+  alertTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  alertMessage: {
+    fontSize: 16,
+    color: COLORS.lightGray,
+    marginBottom: 30,
+    textAlign: 'center',
+  },
+  alertButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 8,
+    width: '100%',
+    alignItems: 'center',
+  },
+  alertButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+// --- ESTILOS DE CHECKBOX MEJORADOS ---
+  checkboxContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 15, // Espacio antes del TextInput
+      paddingVertical: 5,
+  },
+  checkboxLabel: {
+      marginLeft: 10,
+      fontSize: 16,
+      fontWeight: '500',
+      color: COLORS.white,
+  },
+    inputDisabled: {
+        backgroundColor: COLORS.inputBorder,
+        opacity: 0.6,
+    },
 });
