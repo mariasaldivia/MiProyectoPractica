@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
@@ -20,7 +20,7 @@ const USERS_DB = [
     { rut: "16893853-5", clave: "1689", name: "Hermi Vargas Garriel", cargo: "Auxiliar de reparto" },
 ];
 
-
+const LOGO_IMAGE = require('../assets/images/logo_Diprochil.png')
 // --- PALETA DE COLORES OPTIMIZADA (COHERENTE CON LOGO ROJO/NARANJA Y MODO OSCURO) ---
 const COLORS = {
   // Fondo principal (Gris muy oscuro con un toque de azul para riqueza)
@@ -83,6 +83,84 @@ export default function Login() {
     isFocused ? styles.inputFocused : {}
   );
 
+{/** 
+function validarRut(rut: string): boolean {
+    // 1. Limpieza y Separación
+    const rutLimpio = rut.replace(/[^0-9kK]/g, '').toUpperCase();
+    if (rutLimpio.length <= 1) return false;
+
+    const dvEsperado = rutLimpio.slice(-1);
+    const cuerpo = rutLimpio.slice(0, -1);
+
+    if (isNaN(Number(cuerpo))) return false;
+
+    // 2. Cálculo del Dígito Verificador (Módulo 11)
+    let suma = 0;
+    let multiplo = 2;
+
+    for (let i = cuerpo.length - 1; i >= 0; i--) {
+        suma += Number(cuerpo[i]) * multiplo;
+        // Reiniciar la secuencia (2, 3, 4, 5, 6, 7)
+        multiplo = multiplo < 7 ? multiplo + 1 : 2;
+    }
+
+    const resto = suma % 11;
+    const dvCalculadoNum = 11 - resto;
+    let dvCalculado: string;
+    
+    // 3. Asignación del DV
+    if (dvCalculadoNum === 11) {
+        dvCalculado = '0';
+    } else if (dvCalculadoNum === 10) {
+        dvCalculado = 'K';
+    } else {
+        dvCalculado = String(dvCalculadoNum);
+    }
+
+    // 4. Comparación
+    return dvCalculado === dvEsperado;
+}
+
+// -----------------------------------------------------------
+// 🚨 NECESITAS ESTA FUNCIÓN PARA LA LÓGICA DE GUARDADO 🚨
+// -----------------------------------------------------------
+
+
+function formatearRutConGuion(rutLimpio: string): string {
+    // Aseguramos que solo trabajamos con números y K/k
+    const limpio = rutLimpio.replace(/[^0-9kK]/g, '').toUpperCase();
+
+    if (limpio.length <= 1) {
+        return limpio;
+    }
+
+    const dv = limpio.slice(-1);
+    const cuerpo = limpio.slice(0, -1);
+
+    return `${cuerpo}-${dv}`; // Retorna en el formato deseado
+}
+
+// -----------------------------------------------------------
+
+// --- Lógica del Guardado ---
+
+const rutIngresado = '17.227.147-K'; // Lo que ingresó el usuario
+
+if (validarRut(rutIngresado)) {
+    // 1. Limpiamos el RUT completamente (ej: '17227147K')
+    const rutLimpioSinGuion = rutIngresado.replace(/[^0-9kK]/g, '').toUpperCase();
+    
+    // 2. Formateamos al formato deseado (ej: '17227147-K')
+    const rutParaGuardar = formatearRutConGuion(rutLimpioSinGuion);
+    
+    console.log(`✅ RUT Válido. Guardando como: ${rutParaGuardar}`);
+    // Aquí iría tu código para guardar en la base de datos o enviar a la API
+    // saveToDatabase(rutParaGuardar);
+} else {
+    console.log(`❌ RUT Inválido.`);
+}
+
+*/}
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -99,9 +177,17 @@ export default function Login() {
       >
         {/* LOGO SIMULADO: Usamos el Rojo del logo en el icono principal */}
         <View style={styles.logoContainer}>
-          {/* El camión debe ser NARANJA, la 'D' del logo es ROJA. Usaremos el NARANJA para mantener la coherencia con el botón. */}
-          <MaterialCommunityIcons name="truck-fast" size={80} color={COLORS.orange} /> 
+          {/* El camión debe ser NARANJA, la 'D' del logo es ROJA. Usaremos el NARANJA para mantener la coherencia con el botón.
+          <MaterialCommunityIcons name="truck-fast" size={80} color={COLORS.orange} />  */}
+            {/* Usamos el componente Image para cargar el logo */}
+          <Image
+            source={LOGO_IMAGE} 
+            style={styles.logoImage} // <-- Estilo específico para la imagen (tamaño, etc.)
+            resizeMode="contain" // <-- Ajusta el modo de redimensionamiento
+          />
+          {/* 
           <Text style={styles.logoText}>DIPROCHIL</Text>
+           */}
         </View>
 
         {/* CONTENEDOR DE LOGIN (CARD) */}
@@ -140,6 +226,7 @@ export default function Login() {
               placeholderTextColor={COLORS.lightGray}
               secureTextEntry={!showClave}
               autoCapitalize="none"
+              maxLength={4}
             />
             <TouchableOpacity
               onPress={() => setShowClave(!showClave)}
@@ -204,6 +291,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 50, // Más espacio debajo del logo
   },
+    logoImage: { // <--- NUEVO ESTILO PARA LA IMAGEN
+    width: 250, // Equivalente al size={80} del ícono
+    height: 250, 
+    marginBottom: 10,
+  },
   logoText: {
     color: COLORS.white,
     fontSize: 26, // Ligeramente más grande
@@ -258,6 +350,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     color: COLORS.white,
     fontSize: 17,
+    
   },
   // ESTILO DE FOCO (El "Glow" Naranja)
   inputFocused: {
